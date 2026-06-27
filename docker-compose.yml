@@ -1,0 +1,53 @@
+version: "3.9"
+
+services:
+  mongo:
+    image: mongo:7
+    container_name: ecom-mongo
+    restart: always
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER:-admin}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASS:-secret}
+      MONGO_INITDB_DATABASE: ecomdb
+    volumes:
+      - mongo_data:/data/db
+    # NOT exposed to host — internal only for security
+    networks:
+      - ecom-net
+
+  backend:
+    build: ./backend
+    container_name: ecom-backend
+    restart: always
+    environment:
+      PORT: 4000
+      MONGO_URI: mongodb://${MONGO_USER:-admin}:${MONGO_PASS:-secret}@mongo:27017/ecomdb?authSource=admin
+      CORS_ORIGIN: ${FRONTEND_URL:-http://localhost:3000}
+    depends_on:
+      - mongo
+    networks:
+      - ecom-net
+    # Expose to Coolify's proxy (not public internet directly)
+    expose:
+      - "4000"
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:4000}
+    container_name: ecom-frontend
+    restart: always
+    depends_on:
+      - backend
+    networks:
+      - ecom-net
+    expose:
+      - "80"
+
+volumes:
+  mongo_data:
+
+networks:
+  ecom-net:
+    driver: bridge
